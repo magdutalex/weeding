@@ -55,7 +55,7 @@ export default function PhotoUpload() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-100 to-purple-100 p-4">
       <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl max-w-2xl w-full p-12 text-center space-y-8">
         <h1 className={`${greatVibes.className} text-4xl text-pink-700`}>
-          Alege fotografia ta, fii parte din amintirile noastre
+          Încarcă o fotografie pentru nunta noastră
         </h1>
 
         {!uploadedImageUrl ? (

@@ -28,8 +28,8 @@ export async function POST(request: Request) {
       console.log(`  ${index + 1}. ${file.name} - ${(file.size / 1024 / 1024).toFixed(2)} MB - ${file.type}`);
     });
 
-    // Process files with batch size limit to avoid memory issues
-    const BATCH_SIZE = 10;
+    // Process files with smaller batch size to avoid memory issues and API limits
+    const BATCH_SIZE = 5; // Reduced from 10 to 5 for better stability
     const allResults = [];
     
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -44,23 +44,82 @@ export async function POST(request: Request) {
         console.log(`⬆️  Starting upload ${fileIndex + 1}/${files.length}: ${file.name}`);
         
         try {
+          // Validate file before processing
+          if (!file.type.startsWith('image/')) {
+            throw new Error(`Invalid file type: ${file.type}. Only images are allowed.`);
+          }
+          
+          if (file.size > 50 * 1024 * 1024) { // 50MB limit
+            throw new Error(`File too large: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 50MB.`);
+          }
+          
+          // Sanitize filename to avoid special characters that might cause issues
+          const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          console.log(`📝 Sanitized filename: ${file.name} -> ${sanitizedName}`);
+          
           const bytes = await file.arrayBuffer();
+          console.log(`📊 File ${fileIndex + 1} array buffer size: ${bytes.byteLength} bytes`);
+          
           const buffer = Buffer.from(bytes);
-          const fileStr = `data:${file.type};base64,${buffer.toString('base64')}`;
+          
+          // Validate buffer
+          if (buffer.length === 0) {
+            throw new Error('Empty file buffer');
+          }
+          
+          // Create base64 string with validation
+          let base64String;
+          try {
+            base64String = buffer.toString('base64');
+            console.log(`📊 Base64 string length for ${file.name}: ${base64String.length} characters`);
+            
+            // Validate base64 string
+            if (!base64String || base64String.length === 0) {
+              throw new Error('Failed to create base64 string');
+            }
+            
+            // Check for valid base64 pattern
+            const base64Pattern = /^[A-Za-z0-9+/]*={0,2}$/;
+            if (!base64Pattern.test(base64String)) {
+              throw new Error('Invalid base64 string pattern');
+            }
+            
+          } catch (base64Error) {
+            console.error(`❌ Base64 conversion error for ${file.name}:`, base64Error);
+            throw new Error(`Base64 conversion failed: ${base64Error instanceof Error ? base64Error.message : 'Unknown error'}`);
+          }
+          
+          const fileStr = `data:${file.type};base64,${base64String}`;
+          console.log(`📊 Final data URL length: ${fileStr.length} characters`);
 
           const result = await cloudinary.uploader.upload(fileStr, {
             folder: 'wedding-photos',
+            public_id: sanitizedName.split('.')[0] + '_' + Date.now(), // Unique public_id
             // Add image optimization
             transformation: [
               { quality: 'auto', fetch_format: 'auto' },
               { width: 1920, height: 1080, crop: 'limit' }
-            ]
+            ],
+            // Add upload options for better reliability
+            resource_type: 'image',
+            invalidate: true,
+            overwrite: false
           });
           
           console.log(`✅ Upload successful ${fileIndex + 1}/${files.length}: ${file.name} -> ${result.secure_url}`);
           return result;
         } catch (fileError) {
           console.error(`❌ Upload failed for file ${fileIndex + 1}/${files.length} (${file.name}):`, fileError);
+          
+          // Log specific error details for debugging
+          if (fileError instanceof Error) {
+            console.error(`Error details for ${file.name}:`, {
+              name: fileError.name,
+              message: fileError.message,
+              stack: fileError.stack?.substring(0, 500) // Limit stack trace length
+            });
+          }
+          
           throw new Error(`Failed to upload ${file.name}: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`);
         }
       });
@@ -71,10 +130,10 @@ export async function POST(request: Request) {
       const batchTime = Date.now() - batchStartTime;
       console.log(`✅ Batch ${Math.floor(i / BATCH_SIZE) + 1} completed in ${batchTime}ms`);
       
-      // Add a small delay between batches to avoid overwhelming Cloudinary
+      // Add a longer delay between batches to avoid overwhelming Cloudinary
       if (i + BATCH_SIZE < files.length) {
-        console.log('⏳ Waiting 1 second before next batch...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('⏳ Waiting 2 seconds before next batch...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
     

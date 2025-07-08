@@ -80,11 +80,51 @@ export default function PhotoUpload() {
     console.log(`🚀 Frontend upload started at ${new Date().toISOString()}`);
     console.log(`📊 Files selected: ${acceptedFiles.length}`);
     
+    // Validate files before processing
+    const validFiles = [];
+    const invalidFiles = [];
+    
+    for (const file of acceptedFiles) {
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        invalidFiles.push(`${file.name}: Invalid file type (${file.type})`);
+        continue;
+      }
+      
+      // Check file size (50MB limit)
+      if (file.size > 50 * 1024 * 1024) {
+        invalidFiles.push(`${file.name}: File too large (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+        continue;
+      }
+      
+      // Check for empty files
+      if (file.size === 0) {
+        invalidFiles.push(`${file.name}: Empty file`);
+        continue;
+      }
+      
+      validFiles.push(file);
+    }
+    
+    // Report invalid files
+    if (invalidFiles.length > 0) {
+      console.warn(`⚠️  Found ${invalidFiles.length} invalid files:`);
+      invalidFiles.forEach(error => console.warn(`  - ${error}`));
+      
+      if (validFiles.length === 0) {
+        alert(`Toate fișierele sunt invalide:\n${invalidFiles.join('\n')}`);
+        return;
+      } else {
+        const proceed = confirm(`${invalidFiles.length} fișiere sunt invalide și vor fi ignorate. Continui cu ${validFiles.length} fișiere valide?`);
+        if (!proceed) return;
+      }
+    }
+    
     // Log file details
-    const totalSize = acceptedFiles.reduce((sum, file) => sum + file.size, 0);
+    const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
     console.log(`📏 Total original file size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
-    console.log(`📁 Original file details:`);
-    acceptedFiles.forEach((file, index) => {
+    console.log(`📁 Valid file details (${validFiles.length} files):`);
+    validFiles.forEach((file, index) => {
       console.log(`  ${index + 1}. ${file.name} - ${(file.size / 1024 / 1024).toFixed(2)} MB - ${file.type}`);
     });
 
@@ -98,8 +138,8 @@ export default function PhotoUpload() {
       
       const compressionStartTime = Date.now();
       const compressedFiles = await Promise.all(
-        acceptedFiles.map(async (file, index) => {
-          console.log(`🗜️  Compressing file ${index + 1}/${acceptedFiles.length}: ${file.name}`);
+        validFiles.map(async (file, index) => {
+          console.log(`🗜️  Compressing file ${index + 1}/${validFiles.length}: ${file.name}`);
           const compressed = await compressImage(file);
           const compressionRatio = ((file.size - compressed.size) / file.size * 100).toFixed(1);
           console.log(`✅ Compressed ${file.name}: ${(file.size / 1024 / 1024).toFixed(2)} MB -> ${(compressed.size / 1024 / 1024).toFixed(2)} MB (${compressionRatio}% reduction)`);
@@ -148,9 +188,9 @@ export default function PhotoUpload() {
         
         const totalTime = Date.now() - uploadStartTime;
         console.log(`🎉 Upload completed successfully in ${totalTime}ms`);
-        console.log(`📈 Frontend processing speed: ${(acceptedFiles.length / (totalTime / 1000)).toFixed(2)} files/second`);
+        console.log(`📈 Frontend processing speed: ${(validFiles.length / (totalTime / 1000)).toFixed(2)} files/second`);
         
-        alert(`Fotografiile au fost încărcate cu succes! ${acceptedFiles.length} fișiere procesate în ${(totalTime / 1000).toFixed(1)} secunde.`);
+        alert(`Fotografiile au fost încărcate cu succes! ${validFiles.length} fișiere procesate în ${(totalTime / 1000).toFixed(1)} secunde.`);
       } else {
         console.error('❌ Server response missing URLs:', data);
         alert(`Încărcarea a eșuat. Detalii: ${data.details || data.error || 'Eroare necunoscută'}`);

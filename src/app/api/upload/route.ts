@@ -34,7 +34,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       success: true,
       urls: results.map(result => result.secure_url)
-      
     });
     
   } catch (error) {

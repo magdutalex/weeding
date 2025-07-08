@@ -12,7 +12,7 @@ const greatVibes = Great_Vibes({
 
 // Helper function to compress images
 const compressImage = (file: File, maxWidth = 1920, quality = 0.8): Promise<File> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const compressionStartTime = Date.now();
     console.log(`🗜️  Starting compression for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
